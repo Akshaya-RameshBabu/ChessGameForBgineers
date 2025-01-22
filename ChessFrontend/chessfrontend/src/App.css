@@ -1,0 +1,8 @@
+.square {
+  border: 1px solid #333;
+  position: relative;
+}
+
+.square:hover {
+  background-color: #ddd;
+}

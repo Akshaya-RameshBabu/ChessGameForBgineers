@@ -1,12 +1,12 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import GameBoard from "./GameBoard";
+import ChessGame from "./ChessGame";
 
 function App() {
   return (
     <Router>
       <div className="App">
         <Routes>
-          <Route path="/" element={<GameBoard />} />
+          <Route path="/" element={<ChessGame />} />
         </Routes>
       </div>
     </Router>
@@ -14,3 +14,4 @@ function App() {
 }
 
 export default App;
+

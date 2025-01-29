@@ -4,12 +4,13 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-@Setter
 @Getter
+@Setter
 @NoArgsConstructor
-public class GameMove {
-	 private int fromRow;
-	    private int fromCol;
-	    private int toRow;
-	    private int toCol;
+public class Move {
+	private int sourceRow;
+    private int sourceCol;
+    private int targetRow;
+    private int targetCol;
+
 }

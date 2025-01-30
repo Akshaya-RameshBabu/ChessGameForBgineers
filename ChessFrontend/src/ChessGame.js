@@ -15,6 +15,7 @@ import BP from './images/BP.png'; // Black Pawn
 import toast from 'react-hot-toast';
 const ChessGame = () => {
   const [board, setBoard] = useState([]);
+  const [turn, setTurn] = useState();
   const getPieceImage = (piece) => {
     switch (piece) {
       case 'WR': return WR;
@@ -32,15 +33,7 @@ const ChessGame = () => {
       default: return null;
     }
   };
-  useEffect(() => {
-    WebSocketService.connect((chessboard) => {
-      setBoard(chessboard);
-    });
-
-    return () => {
-      WebSocketService.disconnect();
-    };
-  }, []);
+ 
   useEffect(() => {
     WebSocketService.connect(
       (chessboard) => {
@@ -48,21 +41,16 @@ const ChessGame = () => {
       },
       (updatedBoard) => {
         setBoard(updatedBoard);
-      }
+      },
+      (turnData) => setTurn(turnData) 
     );
 
     return () => {
       WebSocketService.disconnect();
     };
   }, []);
-  const [highlightedSquare, setHighlightedSquare] = useState(null); // Store cursor position
-
-  const handleMouseEnter = (rowIndex, colIndex) => {
-    setHighlightedSquare({ row: rowIndex, col: colIndex });
-
-    // Send cursor position to the server via WebSocket
-    socket.emit('cursorMove', { row: rowIndex, col: colIndex });
-  };
+  
+  
   const handleDragStart = (e, rowIndex, colIndex) => {
     e.dataTransfer.setData("source", `${rowIndex}-${colIndex}`);
   };
@@ -96,6 +84,8 @@ const ChessGame = () => {
   };
 
   return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+      <h1>Turn ={turn ? "White":"Black"}</h1>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 50px)', gap: '1px' }}>
       {board.map((row, rowIndex) =>
         row.map((piece, colIndex) => (
@@ -125,6 +115,7 @@ const ChessGame = () => {
           </div>
         ))
       )}
+    </div>
     </div>
   );
 };

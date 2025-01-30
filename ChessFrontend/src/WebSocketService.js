@@ -7,7 +7,7 @@ class WebSocketService {
     this.client = null;
   }
 
-  connect(onBoardReceived, onMoveReceived) {
+  connect(onBoardReceived, onMoveReceived,onTurnReceived) {
     this.client = new Client({
       webSocketFactory: () => new SockJS(`${baseUrl}/ws`),
       debug: (str) => console.log(str),
@@ -27,9 +27,14 @@ class WebSocketService {
             onMoveReceived(JSON.parse(message.body));
           }
         });
-
+        this.client.subscribe("/topic/Turn", (message) => {
+          if (onTurnReceived) {
+            onTurnReceived(JSON.parse(message.body));
+          }
+        });
         // Request the initial chessboard
         this.client.publish({ destination: "/app/chessboard" });
+        this.client.publish({ destination: "/app/Turn" });
       },
       onStompError: (frame) => {
         console.error("WebSocket Error", frame);

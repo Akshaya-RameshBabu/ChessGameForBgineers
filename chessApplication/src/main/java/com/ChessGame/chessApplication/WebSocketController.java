@@ -25,7 +25,7 @@ public class WebSocketController {
     }
     @MessageMapping("/move")
     @SendTo("/topic/moves")
-    public String[][] handleMove(Move move) {
+    public String[][] handleMove(Move move) { 
         int sourceRow = move.getSourceRow();
         int sourceCol = move.getSourceCol();
         int targetRow = move.getTargetRow();
@@ -50,11 +50,28 @@ public class WebSocketController {
           boolean isValid=false;
             switch(piece) {
 	            case 'P':
-			      isValid= this.validatePawnMove(sourceRow, sourceCol, targetRow, targetCol, color, targetColor);
-			      System.out.println("isValid="+isValid);
+			      isValid=validatePawnMove(sourceRow, sourceCol, targetRow, targetCol, color, targetColor);
+	            	break;
+	            case 'R':
+	            	System.out.println("here");
+	            	isValid=validateRookMove(sourceRow, sourceCol, targetRow, targetCol);
+	            	System.out.println();
+	              break;
+	            case 'B':
+	            	isValid=validateBishopMove(sourceRow, sourceCol, targetRow, targetCol);
+	            	break;
+	            case 'H':
+	            	isValid=validateHorseMove(sourceRow, sourceCol, targetRow, targetCol);
+	            	System.out.println("horse"+isValid);
+	            	break;
+	            case 'Q':
+	            	isValid=validateQueenMove(sourceRow, sourceCol, targetRow, targetCol);
+	            	break;
+	            case'K':
+	            	isValid=validateKingMove(sourceRow, sourceCol, targetRow, targetCol);
 	            	break;
 			    default:
-			        System.out.println("Unknown Piece");
+			        System.out.println("Unknown Piece"+piece);
             }
         if(isValid) {
             board[targetRow][targetCol] = board[sourceRow][sourceCol];
@@ -66,16 +83,55 @@ public class WebSocketController {
       
         // Send updated board to all clients
     }
+    private boolean validateHorseMove(int sourceRow, int sourceCol, int targetRow, int targetCol) {
+        int rowDiff = Math.abs(targetRow - sourceRow);
+        int colDiff = Math.abs(targetCol - sourceCol);
+        return (rowDiff == 2 && colDiff == 1) || (rowDiff == 1 && colDiff == 2);
+    }
+
+    private boolean validateQueenMove(int sourceRow, int sourceCol, int targetRow, int targetCol) {
+        return validateRookMove(sourceRow, sourceCol, targetRow, targetCol) || validateBishopMove(sourceRow, sourceCol, targetRow, targetCol);
+    }
+    private boolean validateKingMove(int sourceRow, int sourceCol, int targetRow, int targetCol) {
+        return Math.abs(targetRow - sourceRow) <= 1 && Math.abs(targetCol - sourceCol) <= 1;
+    }
+
+    private boolean validateBishopMove(int sourceRow, int sourceCol, int targetRow, int targetCol) {
+        if (Math.abs(targetRow - sourceRow) != Math.abs(targetCol - sourceCol)) return false;
+
+        return isPathClear(sourceRow, sourceCol, targetRow, targetCol);
+    }
+
+    private boolean isPathClear(int sourceRow, int sourceCol, int targetRow, int targetCol) {
+        int rowStep = Integer.compare(targetRow, sourceRow);
+        int colStep = Integer.compare(targetCol, sourceCol);
+
+        int row = sourceRow + rowStep;
+        int col = sourceCol + colStep;
+
+        while (row != targetRow || col != targetCol) {
+            if (!board[row][col].equals(".")) return false;
+            row += rowStep;
+            col += colStep;
+        }
+
+        return true;
+    }
+
     
+    //for Rook (Elephant)
+    private boolean validateRookMove(int sourceRow, int sourceCol, int targetRow, int targetCol) {
+        if (sourceRow != targetRow && sourceCol != targetCol) return false;
+        
+        return isPathClear(sourceRow, sourceCol, targetRow, targetCol);
+    }
+
     private boolean validatePawnMove(int sourceRow, int sourceCol, int targetRow, int targetCol, char color, char targetColor) {
     	int direction = (color == 'W') ? 1 : -1; // White moves down (+1), Black moves up (-1)
-
-        
         // Normal move (one square forward)
         if (sourceCol == targetCol && targetColor == '.' && targetRow == sourceRow + direction) {
             return true;
         }
-        
         // Double move from starting position
      // Pawn Double Step Move Logic (Only from starting position)
         else if (sourceCol == targetCol 
@@ -85,12 +141,10 @@ public class WebSocketController {
            ) { 
                 return true;
         }
-        
         // Capture move (diagonal)
         else if (Math.abs(targetCol - sourceCol) == 1 && targetColor != '.' && targetColor != color && targetRow == sourceRow + direction) {
             return true;
         }
-
         return false;
     }
 

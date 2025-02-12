@@ -15,7 +15,7 @@ import BP from './images/BP.png'; // Black Pawn
 import toast from 'react-hot-toast';
 const ChessGame = () => {
   const [board, setBoard] = useState([]);
-  const [turn, setTurn] = useState();
+  const [turn, setTurn] = useState(); //true-White false-Black
   const getPieceImage = (piece) => {
     switch (piece) {
       case 'WR': return WR;
@@ -63,8 +63,16 @@ const ChessGame = () => {
 
       const newBoard = [...board];
       const piece = newBoard[sourceRowIndex][sourceColIndex];
-
+      console.log(piece);
+      const [color, type] = piece.split("");
+     
       if (piece !== ".") {
+        if(!turn && color=='W'){
+          toast("Blacks Move.!")
+        }
+        else if(turn && color=='B'){
+          toast("Whites Move.!")
+        }else{
           // Send move to server
           WebSocketService.sendMove({
             sourceRow: sourceRowIndex,
@@ -72,7 +80,7 @@ const ChessGame = () => {
             targetRow: targetRowIndex,
             targetCol: targetColIndex,
           });
-       
+        }
       }
     } catch (err) {
       console.log(err);

@@ -13,22 +13,47 @@ body {
 }
 
 /* Floating Decorative Icons */
+/* Floating Chess Icons */
 body::before,
-body::after {
-  content: "♛";
-  position: absolute;
-  font-size: 8rem;
-  color: rgba(255, 255, 255, 0.05);
-  animation: float 10s infinite alternate ease-in-out;
+body::after,
+html::before {
+  position: fixed;
   z-index: 0;
+  animation: float 10s infinite alternate ease-in-out;
+  pointer-events: none; /* ensures icons don't block clicks */
 }
 
+/* ♛ Queen - Top Left */
+body::before {
+  content: "♛";
+  top: 8%;
+  left: 6%;
+  font-size: 9rem;
+  color: rgba(50, 33, 33, 0.05);
+  animation: float 8s infinite alternate ease-in-out;
+}
+
+/* ♞ Knight - Bottom Right */
 body::after {
   content: "♞";
-  right: 5%;
   bottom: 10%;
+  right: 6%;
   font-size: 10rem;
+  color: rgba(255, 255, 255, 0.05);
   animation-delay: 4s;
+  animation: float 10s infinite alternate ease-in-out;
+}
+
+
+
+html::before {
+  content: "♜";
+  bottom: 12%;
+  left: 1%;
+  font-size: 9.5rem;
+  color: rgba(40, 28, 28, 0.05);
+  animation-delay: 2s;
+  animation: float 9s infinite alternate-reverse ease-in-out;
 }
 
 @keyframes float {
@@ -40,16 +65,17 @@ body::after {
   }
 }
 
+
 /* === Layout Container === */
 .chess-container {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   gap: 50px;
   flex-wrap: wrap;
   max-width: 1200px;
   width: 100%;
-  padding: 30px;
+  padding: 20px;
   box-sizing: border-box;
   z-index: 1;
 }
@@ -96,9 +122,15 @@ body::after {
 }
 
 .cell.possible-move {
-  background: radial-gradient(circle, #B8CFCE 30%, transparent 70%);
+  background: radial-gradient(circle, rgba(184, 207, 206, 0.6) 35%, transparent 70%);
   animation: pulse 1s infinite ease-in-out;
 }
+
+.cell.capture-move {
+  background: radial-gradient(circle, rgba(255, 99, 71, 0.5) 35%, transparent 70%);
+  animation: pulse 1s infinite ease-in-out;
+}
+
 
 @keyframes pulse {
   0% {
@@ -129,10 +161,10 @@ body::after {
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(10px);
   border-radius: 20px;
-  padding: 25px 35px;
+  padding: 20px 30px;
   color: #333446;
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
-  width: 280px;
+  width: 300px;
   height: auto;
   display: flex;
   flex-direction: column;
@@ -206,4 +238,115 @@ body::after {
   .timer {
     font-size: 1rem;
   }
+}
+
+
+.captured-pieces-container {
+  padding: 1rem;
+ margin: 1rem;
+}
+
+.captured-section {
+    background: rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(10px);
+  border-radius: 20px;
+  padding: 20px 30px;
+  color: #333446;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
+  width: 300px;
+  height: auto;
+  margin-bottom: 1rem;
+  text-align: center;
+  transition: transform 0.2s ease;
+}
+
+.captured-section:hover {
+  transform: translateY(-3px);
+}
+
+.captured-section h3 {
+  color: #333446;
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.captured-list {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 40px;
+}
+
+.captured-piece {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background-color: #B8CFCE;
+  padding: 4px;
+  box-shadow: 0 2px 5px rgba(127, 140, 170, 0.3);
+  transition: transform 0.2s ease;
+}
+
+.captured-piece:hover {
+  transform: scale(1.1);
+}
+
+.empty-text {
+  color: #7F8CAA;
+  font-size: 0.9rem;
+  font-style: italic;
+  margin: 0;
+}
+@keyframes fadeInPiece {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.captured-piece {
+  animation: fadeInPiece 0.3s ease;
+}
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
+  min-height: fit-content;
+  padding: 16px;
+}
+
+
+.game-over-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 2rem 3rem;
+  border-radius: 15px;
+  text-align: center;
+  box-shadow: 0 4px 30px rgba(0,0,0,0.2);
+  z-index: 999;
+}
+.game-over-modal h2 {
+  font-size: 2rem;
+  margin-bottom: 1rem;
+}
+.game-over-modal button {
+  background: #333;
+  color: #fff;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.no-capture {
+  font-size: 14px;
+  color: #666;
+  text-align: center;
+  padding: 10px;
+  font-style: italic;
+  opacity: 0.7;
 }

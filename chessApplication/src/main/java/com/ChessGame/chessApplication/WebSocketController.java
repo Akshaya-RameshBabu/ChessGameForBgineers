@@ -1,4 +1,5 @@
 package com.ChessGame.chessApplication;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.SendTo;
@@ -7,11 +8,16 @@ import org.springframework.stereotype.Controller;
 
 @Controller
 public class WebSocketController {
-	 @Autowired
-	    private SimpMessagingTemplate messagingTemplate;
-	 
-    private static String[][] board = initializeBoard(); 
-    private static boolean  turn=false; //true=White ,false=Black
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
+
+    private static String[][] board = initializeBoard();
+    private static boolean turn = true; // true = White, false = Black
+    private static boolean gameOver = false;
+
+    /* ===================== WebSocket Endpoints ===================== */
+
     @MessageMapping("/chessboard")
     @SendTo("/topic/board")
     public String[][] sendChessboard() {
@@ -20,150 +26,285 @@ public class WebSocketController {
 
     @MessageMapping("/Turn")
     @SendTo("/topic/Turn")
-    public boolean GetTurn() {
-        return turn; // Send updated board to all clients
+    public boolean getTurn() {
+        return turn;
     }
+
+    @MessageMapping("/reset")
+    public void resetGame() {
+        board = initializeBoard();
+        turn = true;
+        gameOver = false;
+        messagingTemplate.convertAndSend("/topic/board", board);
+        messagingTemplate.convertAndSend("/topic/Turn", turn);
+        messagingTemplate.convertAndSend("/topic/reset", "Game has been reset."); 
+        System.out.println("♻️ Game reset.");
+    }
+
     @MessageMapping("/move")
     @SendTo("/topic/moves")
-    public String[][] handleMove(Move move) { 
-        int sourceRow = move.getSourceRow();
-        int sourceCol = move.getSourceCol();
-        int targetRow = move.getTargetRow();
-        int targetCol = move.getTargetCol();
-        System.out.println("Source=("+sourceRow+","+sourceCol+")");
-        System.out.println("Target=("+targetRow+","+targetCol+")");
-        if (board[sourceRow][sourceCol].equals(".") ) {
-        	return board;
+    public String[][] handleMove(Move move) {
+        if (gameOver) {
+            System.out.println("🏁 Game over. No more moves allowed.");
+            return board;
         }
-            char color= board[sourceRow][sourceCol].charAt(0);
-            char piece=board[sourceRow][sourceCol].charAt(1);
-            String target=board[targetRow][targetCol];
-            char targetColor='.';
-            char targetPiece='.';
-            if(target!=".") {
-            	 targetColor=target.charAt(0);
-            	 targetPiece=target.charAt(1);
-            }
-            if((!turn && color=='W') ||(turn && color=='B')|| (targetColor==color)) {
-            	return board;
-            }
-          boolean isValid=false;
-            switch(piece) {
-	            case 'P':
-			      isValid=validatePawnMove(sourceRow, sourceCol, targetRow, targetCol, color, targetColor);
-	            	break;
-	            case 'R':
-	            	System.out.println("here");
-	            	isValid=validateRookMove(sourceRow, sourceCol, targetRow, targetCol);
-	            	System.out.println();
-	              break;
-	            case 'B':
-	            	isValid=validateBishopMove(sourceRow, sourceCol, targetRow, targetCol);
-	            	break;
-	            case 'H':
-	            	isValid=validateHorseMove(sourceRow, sourceCol, targetRow, targetCol);
-	            	System.out.println("horse"+isValid);
-	            	break;
-	            case 'Q':
-	            	isValid=validateQueenMove(sourceRow, sourceCol, targetRow, targetCol);
-	            	break;
-	            case'K':
-	            	isValid=validateKingMove(sourceRow, sourceCol, targetRow, targetCol);
-	            	break;
-			    default:
-			        System.out.println("Unknown Piece"+piece);
-            }
-        if(isValid) {
-            board[targetRow][targetCol] = board[sourceRow][sourceCol];
-            board[sourceRow][sourceCol] = ".";
+
+        int sr = move.getSourceRow();
+        int sc = move.getSourceCol();
+        int tr = move.getTargetRow();
+        int tc = move.getTargetCol();
+
+        if (board[sr][sc].equals(".")) return board;
+
+        char color = board[sr][sc].charAt(0);
+        char piece = board[sr][sc].charAt(1);
+        String target = board[tr][tc];
+        char targetColor = target.equals(".") ? '.' : target.charAt(0);
+
+        // === Turn & same-color capture validation ===
+        if ((turn && color != 'W') || (!turn && color != 'B')) return board;
+        if (targetColor == color) return board;
+
+        boolean valid = false;
+        switch (piece) {
+            case 'P' -> valid = validatePawnMove(sr, sc, tr, tc, color, targetColor);
+            case 'R' -> valid = validateRookMove(sr, sc, tr, tc);
+            case 'B' -> valid = validateBishopMove(sr, sc, tr, tc);
+            case 'H' -> valid = validateHorseMove(sr, sc, tr, tc);
+            case 'Q' -> valid = validateQueenMove(sr, sc, tr, tc);
+            case 'K' -> valid = validateKingMove(sr, sc, tr, tc);
+        }
+        if (!valid) {
+            System.out.println("❌ Invalid move attempted for " + board[sr][sc]);
+            return board;
+        }
+
+        // === Try move temporarily ===
+        String temp = board[tr][tc];
+        board[tr][tc] = board[sr][sc];
+        board[sr][sc] = ".";
+
+        // === Prevent self-check ===
+        if (isKingInCheck(color)) {
+            board[sr][sc] = board[tr][tc];
+            board[tr][tc] = temp;
+            String msg = (color == 'W' ? "White" : "Black") + " King is in Check! Move blocked.";
+            messagingTemplate.convertAndSend("/topic/check", msg);
+            System.out.println("🚫 " + msg);
+            return board;
+        }
+
+        // === Notify capture ===
+        if (!temp.equals(".")) {
+            messagingTemplate.convertAndSend("/topic/capture", temp);
+            System.out.println("💥 Capture: " + temp + " taken by " + board[tr][tc]);
+        }
+
+        // === After every move, check for check & checkmate for both sides ===
+        boolean whiteInCheck = isKingInCheck('W');
+        boolean blackInCheck = isKingInCheck('B');
+        boolean whiteCheckmate = isCheckmate('W');
+        boolean blackCheckmate = isCheckmate('B');
+
+        if (whiteCheckmate) {
+            gameOver = true;
+            messagingTemplate.convertAndSend("/topic/gameOver", "Black wins by Checkmate!");
+            System.out.println("🏆 Black wins by Checkmate!");
+            return board;
+        }
+        if (blackCheckmate) {
+            gameOver = true;
+            messagingTemplate.convertAndSend("/topic/gameOver", "White wins by Checkmate!");
+            System.out.println("🏆 White wins by Checkmate!");
+            return board;
+        }
+
+        // === Check warnings ===
+        if (whiteInCheck && !whiteCheckmate) {
+            messagingTemplate.convertAndSend("/topic/check", "⚠️ White King is in Check!");
+            System.out.println("⚠️ White King is in Check!");
+        }
+        if (blackInCheck && !blackCheckmate) {
+            messagingTemplate.convertAndSend("/topic/check", "⚠️ Black King is in Check!");
+            System.out.println("⚠️ Black King is in Check!");
+        }
+
+        // === Switch Turn ===
+        if (!gameOver) {
             turn = !turn;
             messagingTemplate.convertAndSend("/topic/Turn", turn);
+            System.out.println("🔁 Turn switched. Now " + (turn ? "White's" : "Black's") + " move.");
         }
+
         return board;
-      
-        // Send updated board to all clients
-    }
-    private boolean validateHorseMove(int sourceRow, int sourceCol, int targetRow, int targetCol) {
-        int rowDiff = Math.abs(targetRow - sourceRow);
-        int colDiff = Math.abs(targetCol - sourceCol);
-        return (rowDiff == 2 && colDiff == 1) || (rowDiff == 1 && colDiff == 2);
     }
 
-    private boolean validateQueenMove(int sourceRow, int sourceCol, int targetRow, int targetCol) {
-        return validateRookMove(sourceRow, sourceCol, targetRow, targetCol) || validateBishopMove(sourceRow, sourceCol, targetRow, targetCol);
-    }
-    private boolean validateKingMove(int sourceRow, int sourceCol, int targetRow, int targetCol) {
-        return Math.abs(targetRow - sourceRow) <= 1 && Math.abs(targetCol - sourceCol) <= 1;
-    }
+    /* ===================== Validation Methods ===================== */
 
-    private boolean validateBishopMove(int sourceRow, int sourceCol, int targetRow, int targetCol) {
-        if (Math.abs(targetRow - sourceRow) != Math.abs(targetCol - sourceCol)) return false;
-
-        return isPathClear(sourceRow, sourceCol, targetRow, targetCol);
+    private boolean validateHorseMove(int sr, int sc, int tr, int tc) {
+        int dr = Math.abs(tr - sr), dc = Math.abs(tc - sc);
+        return (dr == 2 && dc == 1) || (dr == 1 && dc == 2);
     }
 
-    private boolean isPathClear(int sourceRow, int sourceCol, int targetRow, int targetCol) {
-        int rowStep = Integer.compare(targetRow, sourceRow);
-        int colStep = Integer.compare(targetCol, sourceCol);
+    private boolean validateQueenMove(int sr, int sc, int tr, int tc) {
+        return validateRookMove(sr, sc, tr, tc) || validateBishopMove(sr, sc, tr, tc);
+    }
 
-        int row = sourceRow + rowStep;
-        int col = sourceCol + colStep;
+    private boolean validateKingMove(int sr, int sc, int tr, int tc) {
+        return Math.abs(tr - sr) <= 1 && Math.abs(tc - sc) <= 1;
+    }
 
-        while (row != targetRow || col != targetCol) {
-            if (!board[row][col].equals(".")) return false;
-            row += rowStep;
-            col += colStep;
+    private boolean validateBishopMove(int sr, int sc, int tr, int tc) {
+        if (Math.abs(tr - sr) != Math.abs(tc - sc)) return false;
+        return isPathClear(sr, sc, tr, tc);
+    }
+
+    private boolean validateRookMove(int sr, int sc, int tr, int tc) {
+        if (sr != tr && sc != tc) return false;
+        return isPathClear(sr, sc, tr, tc);
+    }
+
+    private boolean validatePawnMove(int sr, int sc, int tr, int tc, char color, char targetColor) {
+        // Correct direction: White moves up (−1), Black moves down (+1)
+        int dir = (color == 'W') ? -1 : 1;
+        int startRow = (color == 'W') ? 6 : 1;
+
+        // Move forward
+        if (sc == tc && targetColor == '.' && tr == sr + dir) return true;
+
+        // Double move from starting row
+        if (sc == tc && targetColor == '.' && sr == startRow && tr == sr + 2 * dir && board[sr + dir][sc].equals("."))
+            return true;
+
+        // Capture move
+        if (Math.abs(tc - sc) == 1 && targetColor != '.' && tr == sr + dir)
+            return true;
+
+        return false;
+    }
+
+    private boolean isPathClear(int sr, int sc, int tr, int tc) {
+        int rowStep = Integer.compare(tr, sr);
+        int colStep = Integer.compare(tc, sc);
+        int r = sr + rowStep, c = sc + colStep;
+        while (r != tr || c != tc) {
+            if (!board[r][c].equals(".")) return false;
+            r += rowStep; c += colStep;
         }
-
         return true;
     }
 
-    
-    //for Rook (Elephant)
-    private boolean validateRookMove(int sourceRow, int sourceCol, int targetRow, int targetCol) {
-        if (sourceRow != targetRow && sourceCol != targetCol) return false;
-        
-        return isPathClear(sourceRow, sourceCol, targetRow, targetCol);
-    }
+    /* ===================== Check & Checkmate ===================== */
 
-    private boolean validatePawnMove(int sourceRow, int sourceCol, int targetRow, int targetCol, char color, char targetColor) {
-    	int direction = (color == 'W') ? 1 : -1; // White moves down (+1), Black moves up (-1)
-        // Normal move (one square forward)
-        if (sourceCol == targetCol && targetColor == '.' && targetRow == sourceRow + direction) {
-            return true;
+    private boolean isKingInCheck(char color) {
+        int kr = -1, kc = -1;
+        for (int r = 0; r < 8; r++) {
+            for (int c = 0; c < 8; c++) {
+                if (board[r][c].equals(color + "K")) {
+                    kr = r; kc = c; break;
+                }
+            }
         }
-        // Double move from starting position
-     // Pawn Double Step Move Logic (Only from starting position)
-        else if (sourceCol == targetCol 
-            && board[targetRow][targetCol].equals(".") // Target square must be empty
-            && board[sourceRow + direction][sourceCol].equals(".") // Middle square must be empty
-            && ((color == 'B' && sourceRow == 6 && targetRow==4) || (color == 'W' && sourceRow == 1 && targetRow==3)) // Pawn at starting row
-           ) { 
-                return true;
-        }
-        // Capture move (diagonal)
-        else if (Math.abs(targetCol - sourceCol) == 1 && targetColor != '.' && targetColor != color && targetRow == sourceRow + direction) {
-            return true;
+        if (kr == -1) return false;
+
+        char opponent = (color == 'W') ? 'B' : 'W';
+        for (int r = 0; r < 8; r++) {
+            for (int c = 0; c < 8; c++) {
+                String piece = board[r][c];
+                if (piece.equals(".") || piece.charAt(0) != opponent) continue;
+                char p = piece.charAt(1);
+
+                boolean attack = switch (p) {
+                    case 'P' -> validatePawnMove(r, c, kr, kc, opponent, color);
+                    case 'R' -> validateRookMove(r, c, kr, kc);
+                    case 'B' -> validateBishopMove(r, c, kr, kc);
+                    case 'H' -> validateHorseMove(r, c, kr, kc);
+                    case 'Q' -> validateQueenMove(r, c, kr, kc);
+                    case 'K' -> validateKingMove(r, c, kr, kc);
+                    default -> false;
+                };
+                if (attack) return true;
+            }
         }
         return false;
     }
 
-    private static String[][] initializeBoard() {
-        String[][] board = {
-        	    { "WR", "WH", "WB", "WQ", "WK", "WB", "WH", "WR" },
-        	    { "WP", "WP", "WP", "WP", "WP", "WP", "WP", "WP" },
-        	    { ".", ".", ".", ".", ".", ".", ".", "." },
-        	    { ".", ".", ".", ".", ".", ".", ".", "." },
-        	    { ".", ".", ".", ".", ".", ".", ".", "." },
-        	    { ".", ".", ".", ".", ".", ".", ".", "." },
-        	    { "BP", "BP", "BP", "BP", "BP", "BP", "BP", "BP" },
-        	    { "BR", "BH", "BB", "BQ", "BK", "BB", "BH", "BR" }
-        	};
+    private boolean isCheckmate(char color) {
+        if (!isKingInCheck(color)) return false;
 
+        System.out.println("♟ Checking if " + (color == 'W' ? "White" : "Black") + " is in checkmate...");
 
-        return board;
+        for (int sr = 0; sr < 8; sr++) {
+            for (int sc = 0; sc < 8; sc++) {
+                if (board[sr][sc].equals(".") || board[sr][sc].charAt(0) != color) continue;
+
+                char piece = board[sr][sc].charAt(1);
+
+                for (int tr = 0; tr < 8; tr++) {
+                    for (int tc = 0; tc < 8; tc++) {
+                        if (sr == tr && sc == tc) continue;
+
+                        String dest = board[tr][tc];
+                        char targetColor = dest.equals(".") ? '.' : dest.charAt(0);
+                        if (targetColor == color) continue;
+
+                        boolean valid = switch (piece) {
+                            case 'P' -> validatePawnMove(sr, sc, tr, tc, color, targetColor);
+                            case 'R' -> validateRookMove(sr, sc, tr, tc);
+                            case 'B' -> validateBishopMove(sr, sc, tr, tc);
+                            case 'H' -> validateHorseMove(sr, sc, tr, tc);
+                            case 'Q' -> validateQueenMove(sr, sc, tr, tc);
+                            case 'K' -> validateKingMove(sr, sc, tr, tc);
+                            default -> false;
+                        };
+
+                        if (!valid) continue;
+
+                        // Simulate the move
+                        String from = board[sr][sc];
+                        board[tr][tc] = from;
+                        board[sr][sc] = ".";
+
+                        boolean stillInCheck = isKingInCheck(color);
+
+                        // Undo the move
+                        board[sr][sc] = from;
+                        board[tr][tc] = dest;
+
+                        // Special handling for the king:
+                        if (piece == 'K') {
+                            // If the move itself puts the king in check (like moving into attacked square)
+                            // then it is NOT a valid escape.
+                            if (stillInCheck) continue;
+                        }
+
+                        // If after move the king is safe → not checkmate
+                        if (!stillInCheck) {
+                            System.out.println("♻️ Escape found: " + from + " from (" + sr + "," + sc + ") to (" + tr + "," + tc + ")");
+                            return false;
+                        }
+                    }
+                }
+            }
+        }
+
+        System.out.println("✅ Checkmate confirmed for " + (color == 'W' ? "White" : "Black"));
+        return true;
     }
-    
+
+
+    /* ===================== Board Setup ===================== */
+
+    private static String[][] initializeBoard() {
+        return new String[][] {
+            { "BR", "BH", "BB", "BQ", "BK", "BB", "BH", "BR" },
+            { "BP", "BP", "BP", "BP", "BP", "BP", "BP", "BP" },
+            { ".", ".", ".", ".", ".", ".", ".", "." },
+            { ".", ".", ".", ".", ".", ".", ".", "." },
+            { ".", ".", ".", ".", ".", ".", ".", "." },
+            { ".", ".", ".", ".", ".", ".", ".", "." },
+            { "WP", "WP", "WP", "WP", "WP", "WP", "WP", "WP" },
+            { "WR", "WH", "WB", "WQ", "WK", "WB", "WH", "WR" }
+        };
+    }
 }
-
-

@@ -7,58 +7,34 @@ class WebSocketService {
     this.client = null;
   }
 
-  connect(onBoardReceived, onMoveReceived,onTurnReceived) {
+  connect(onBoard, onMove, onTurn, onGameOver, onCapture,onCheck) {
     this.client = new Client({
       webSocketFactory: () => new SockJS(`${baseUrl}/ws`),
-      debug: (str) => console.log(str),
       onConnect: () => {
-        console.log("Connected to WebSocket");
-
-        // Subscribe to board initialization
-        this.client.subscribe("/topic/board", (message) => {
-          if (onBoardReceived) {
-            onBoardReceived(JSON.parse(message.body));
-          }
-        });
-
-        // Subscribe to move updates
-        this.client.subscribe("/topic/moves", (message) => {
-          if (onMoveReceived) {
-            onMoveReceived(JSON.parse(message.body));
-          }
-        });
-        this.client.subscribe("/topic/Turn", (message) => {
-          if (onTurnReceived) {
-            onTurnReceived(JSON.parse(message.body));
-          }
-        });
-        // Request the initial chessboard
+        this.client.subscribe("/topic/board", (msg) => onBoard(JSON.parse(msg.body)));
+        this.client.subscribe("/topic/moves", (msg) => onMove(JSON.parse(msg.body)));
+        this.client.subscribe("/topic/Turn", (msg) => onTurn(JSON.parse(msg.body)));
+         this.client.subscribe("/topic/check", (msg) => onCheck(msg.body));
+        this.client.subscribe("/topic/gameOver", (msg) => onGameOver(msg.body));
+        this.client.subscribe("/topic/capture", (msg) => onCapture(msg.body));
         this.client.publish({ destination: "/app/chessboard" });
         this.client.publish({ destination: "/app/Turn" });
       },
-      onStompError: (frame) => {
-        console.error("WebSocket Error", frame);
-      },
     });
-
     this.client.activate();
   }
 
   sendMove(move) {
-    if (this.client && this.client.connected) {
-      this.client.publish({
-        destination: "/app/move",
-        body: JSON.stringify(move),
-      });
-    }
+    this.client?.publish({ destination: "/app/move", body: JSON.stringify(move) });
+  }
+
+  resetGame() {
+    this.client?.publish({ destination: "/app/reset" });
   }
 
   disconnect() {
-    if (this.client) {
-      this.client.deactivate();
-    }
+    this.client?.deactivate();
   }
 }
 
 export default new WebSocketService();
-

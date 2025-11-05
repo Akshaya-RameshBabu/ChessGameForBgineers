@@ -167,25 +167,26 @@ const handleDrop = (e, targetRowIndex, targetColIndex) => {
   const isOpponent = (r, c) => board[r][c] !== "." && board[r][c][0] !== color;
 
   // ➤ Pawn moves
-  if (type === "P") {
-    const dir = color === "W" ? 1 : -1; // adjust if your white starts at top or bottom
-    const next = rowIndex + dir;
-    if (inBounds(next, colIndex) && isEmpty(next, colIndex))
-      moves.push([next, colIndex]);
+ if (type === "P") {
+  const dir = color === "W" ? -1 : 1; // White moves up, Black moves down
+  const next = rowIndex + dir;
+  if (inBounds(next, colIndex) && isEmpty(next, colIndex))
+    moves.push([next, colIndex]);
 
-    // Double step
-    const startRow = color === "W" ? 1 : 6;
-    const doubleStep = rowIndex + 2 * dir;
-    if (rowIndex === startRow && isEmpty(next, colIndex) && isEmpty(doubleStep, colIndex))
-      moves.push([doubleStep, colIndex]);
+  // Double step
+  const startRow = color === "W" ? 6 : 1;
+  const doubleStep = rowIndex + 2 * dir;
+  if (rowIndex === startRow && isEmpty(next, colIndex) && isEmpty(doubleStep, colIndex))
+    moves.push([doubleStep, colIndex]);
 
-    // Diagonal captures
-    for (const dc of [-1, 1]) {
-      const r = rowIndex + dir, c = colIndex + dc;
-      if (inBounds(r, c) && isOpponent(r, c))
-        moves.push([r, c]);
-    }
+  // Diagonal captures
+  for (const dc of [-1, 1]) {
+    const r = rowIndex + dir, c = colIndex + dc;
+    if (inBounds(r, c) && isOpponent(r, c))
+      moves.push([r, c]);
   }
+}
+
 
   // ➤ Rook
   if (type === "R" || type === "Q") {

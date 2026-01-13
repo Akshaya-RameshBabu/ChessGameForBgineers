@@ -14,7 +14,7 @@ class WebSocketService {
         this.client.subscribe("/topic/board", (msg) => onBoard(JSON.parse(msg.body)));
         this.client.subscribe("/topic/moves", (msg) => onMove(JSON.parse(msg.body)));
         this.client.subscribe("/topic/Turn", (msg) => onTurn(JSON.parse(msg.body)));
-         this.client.subscribe("/topic/check", (msg) => onCheck(msg.body));
+        this.client.subscribe("/topic/check", (msg) => onCheck(msg.body));
         this.client.subscribe("/topic/gameOver", (msg) => onGameOver(msg.body));
         this.client.subscribe("/topic/capture", (msg) => onCapture(msg.body));
         this.client.publish({ destination: "/app/chessboard" });
